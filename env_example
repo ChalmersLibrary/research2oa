@@ -1,0 +1,6 @@
+OA_API_ENDPOINT=https://api.openalex.org/works
+START_YEAR=2018
+CRIS_API_USER=xxxxxx
+CRIS_API_PW=xxxxxxxxxx
+CRIS_API_ENDPOINT=chalmers-research-publications-prod.azurewebsites.net/api/Publications
+OUTFILE=oa_matches_cth.tsv
