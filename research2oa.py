@@ -15,7 +15,7 @@ import uuid
 import configparser
 
 # Script for matching Chalmers CRIS publication records with Open Alex contents
-# Exact match with DOI and/or PMID first, then fuzzy match with title and (CRIS) publication year
+# Will try to match (exact) using DOI and/or PMID first, then fuzzy match using title and (CRIS) publication year
 # Output: CRIS Publication ID, CRIS Title, CRIS Year, CRIS DOI, CRIS PMID, Open Alex Publication ID, OA Title, OA Chalmers Affiliation (0/1), OA Reference Count, Match Type (DOI/PMID/Title/NO MATCH)
 # Use .env file for configuration (see env_example)
 
@@ -37,9 +37,8 @@ cris_api_user = os.getenv("CRIS_API_USER")
 cris_api_pw = os.getenv("CRIS_API_PW")
 cris_api_baseurl = os.getenv("CRIS_API_ENDPOINT")
 cris_api_url = 'https://' + cris_api_user + ':' + cris_api_pw + '@' + cris_api_baseurl
-
-# Outfile
-outfile = 'oa_matches_cth.tsv'
+outfile = os.getenv("OUTFILE", 'oa_matches_cth.tsv')
+chalmers_oa_id = os.getenv("OA_ORG_ID") # Chalmers Open Alex organization ID (we should perhaps also match ROR if available?)
 
 headers = {'Accept': 'application/json'}
 
