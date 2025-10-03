@@ -38,7 +38,7 @@ cris_api_pw = os.getenv("CRIS_API_PW")
 cris_api_baseurl = os.getenv("CRIS_API_ENDPOINT")
 cris_api_url = 'https://' + cris_api_user + ':' + cris_api_pw + '@' + cris_api_baseurl
 outfile = os.getenv("OUTFILE", 'oa_matches_cth.tsv')
-chalmers_oa_id = os.getenv("OA_ORG_ID") # Chalmers Open Alex organization ID (we should perhaps also match ROR if available?)
+chalmers_oa_id = os.getenv("OA_ORG_ID") # Chalmers Open Alex organization ID (we should perhaps also match ROR and/or org name?)
 
 headers = {'Accept': 'application/json'}
 
@@ -79,7 +79,7 @@ for i in range(500):
                                         for auth in work['authorships']:
                                             if 'institutions' in auth:
                                                 for inst in auth['institutions']:
-                                                    if inst['id'] == 'https://openalex.org/I66862912':
+                                                    if inst['id'] == chalmers_oa_id:
                                                         chalmers_aff = '1'
                                     line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t{doi}\t\t{work['id']}\t{work['title']}\t{chalmers_aff}\t{ref_count}\tDOI\n"
                                     outfile_tsv.write(line)
@@ -109,7 +109,7 @@ for i in range(500):
                                         for auth in work['authorships']:
                                             if 'institutions' in auth:
                                                 for inst in auth['institutions']:
-                                                    if inst['id'] == 'https://openalex.org/I66862912':
+                                                    if inst['id'] == chalmers_oa_id:
                                                         chalmers_aff = '1'
                                     line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t\t{pmid}\t{work['id']}\t{work['title']}\t{chalmers_aff}\t{ref_count}\tPMID\n"
                                     outfile_tsv.write(line)
@@ -139,7 +139,7 @@ for i in range(500):
                                         for auth in work['authorships']:
                                             if 'institutions' in auth:
                                                 for inst in auth['institutions']:
-                                                    if inst['id'] == 'https://openalex.org/I66862912':
+                                                    if inst['id'] == chalmers_oa_id:
                                                         chalmers_aff = '1'
                                     line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t\t\t{work['id']}\t{work['title']}\t{chalmers_aff}\t{ref_count}\tTitle\n"
                                     outfile_tsv.write(line)
