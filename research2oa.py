@@ -4,15 +4,9 @@
 import time
 import requests
 import json
-import sys
 from dotenv import load_dotenv
-import csv
 from datetime import datetime
 import os
-import random
-import string
-import uuid
-import configparser
 
 # Script for matching Chalmers CRIS publication records with Open Alex contents
 # Will try to match (exact) using DOI and/or PMID first, then fuzzy match using title and (CRIS) publication year
