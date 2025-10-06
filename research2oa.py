@@ -32,30 +32,77 @@ cris_api_pw = os.getenv("CRIS_API_PW")
 cris_api_baseurl = os.getenv("CRIS_API_ENDPOINT")
 cris_api_url = 'https://' + cris_api_user + ':' + cris_api_pw + '@' + cris_api_baseurl
 outfile = os.getenv("OUTFILE", 'oa_matches_cth.tsv')
-chalmers_oa_id = os.getenv("OA_ORG_ID") # Chalmers Open Alex organization ID (we should perhaps also match ROR and/or org name?)
+chalmers_oa_id = os.getenv("OA_ORG_ID") # Chalmers Open Alex organization ID (we should probably also match ROR and/or org name?)
+scopus_endpoint = os.getenv("SCOPUS_API_ENDPOINT")
+scopus_apikey = os.getenv("SCOPUS_API_KEY")
+scopus_insttoken = os.getenv("SCOPUS_INSTTOKEN")
+
+def scopus_citation_count(scopus_eid):
+    scopus_citation_count = '0'
+    scopus_id = scopus_eid
+    scopus_headers = {'Accept': 'application/json', 'X-ELS-APIKey': scopus_apikey, 'X-ELS-Insttoken': scopus_insttoken, 'X-Els-ResourceVersion': 'XOCS'}
+    scopus_url = "http://api.elsevier.com/content/search/scopus?query=EID(" + scopus_id + ")&field=citedby-count"
+    try:
+        scopus_data = requests.get(url=scopus_url, headers=scopus_headers).text
+        scopus_json = json.loads(scopus_data)
+        if 'search-results' in scopus_json and 'entry' in scopus_json['search-results'] and len(scopus_json['search-results']['entry']) > 0:
+            entry = scopus_json['search-results']['entry'][0]
+            if 'citedby-count' in entry:
+                print(f"Scopus citation count for Scopus ID {scopus_id} is {entry['citedby-count']}")   
+                scopus_citation_count = str(entry['citedby-count'])
+    except Exception as e:
+        print(f"Error querying Scopus for Scopus ID {scopus_id}: {e}")
+    return scopus_citation_count
 
 headers = {'Accept': 'application/json'}
 
-for i in range(500):
-    cris_url = cris_api_url + "?query=_exists_%3AValidatedBy%20AND%20IsDraft%3Afalse%20AND%20IsDeleted%3Afalse%20AND%20!_exists_%3AIsReplacedById%20AND%20Year%3A%5B" + str(start_year) + "%20TO%20*%5D%20AND%20(PublicationType.NameEng%3A%22Journal%20Article%22%20OR%20PublicationType.NameEng%3A%22Paper%20in%20proceeding%22%20OR%20PublicationType.NameEng%3A%22Review%22%20%20OR%20PublicationType.NameEng%3A%22Monograph%22)&max=" + str(rows_per_query) + "&start=" + str(offset) + "&sort=Id&sortOrder=asc&selectedFields=Id%2CTitle%2CYear%2CIdentifierDoi%2CIdentifierPubmedId%2CPublicationType.NameEng"
-
+for i in range(1000):
+    cris_url = (
+        cris_api_url
+        + "?query=_exists_%3AValidatedBy"
+        + "%20AND%20IsDraft%3Afalse"
+        + "%20AND%20IsDeleted%3Afalse"
+        + "%20AND%20!_exists_%3AIsReplacedById"
+        + "%20AND%20Year%3A%5B" + str(start_year) + "%20TO%20*%5D"
+        + "%20AND%20("
+            + "PublicationType.NameEng%3A%22Journal%20Article%22"
+            + "%20OR%20PublicationType.NameEng%3A%22Paper%20in%20proceeding%22"
+            + "%20OR%20PublicationType.NameEng%3A%22Review%22"
+            + "%20OR%20PublicationType.NameEng%3A%22Book%22"
+            + "%20OR%20PublicationType.NameEng%3A%22scientific%20journal%22"
+        + ")"
+        + "&max=" + str(rows_per_query)
+        + "&start=" + str(offset)
+        + "&sort=Id"
+        + "&sortOrder=asc"
+        + "&selectedFields=Id%2CTitle%2CYear%2CIdentifierDoi%2CIdentifierPubmedId%2CIdentifierScopusId%2CPublicationType.NameEng"
+    )
     try:
         cris_data = requests.get(url=cris_url, headers=headers).text
         cris_json = json.loads(cris_data)
         if cris_json['TotalCount'] > 0:
             if offset > cris_json['TotalCount']:
-                print("No more publications to process. Exiting")
+                print("No more publications to process, exiting.")
                 exit(0)
             print("Trying to match " + str(cris_json['TotalCount']) + " publications from Chalmers CRIS with OA data, starting at offset " + str(offset))
             for publ in cris_json['Publications']:
-                ref_count = '0'
+                cit_count = '0'
                 oa_matched = '0'
                 doi = ''
                 pmid = ''
+                scopus_cit_count = '0'
+                scopus_eid = ''
+                pubtype = publ['PublicationType']['NameEng']
+
+                if 'IdentifierDoi' in publ and len(publ['IdentifierDoi']) > 0:
+                    # OA seem to always (?) store DOI in lowercase...
+                    doi = publ['IdentifierDoi'][0].strip().lower()
+
+                if 'IdentifierScopusId' in publ and len(publ['IdentifierScopusId']) > 0:
+                    scopus_eid = '2-s2.0-' + publ['IdentifierScopusId'][0].strip()
                 
                 # First try using DOI
-                if 'IdentifierDoi' in publ and len(publ['IdentifierDoi']) > 0:
-                    doi = publ['IdentifierDoi'][0].strip()
+                if doi:
                     oa_query = oa_url + '?filter=doi:' + doi
                     try:
                         oa_data = requests.get(url=oa_query, headers=headers).text
@@ -65,8 +112,12 @@ for i in range(500):
                             oa_match_doi += 1
                             with open(outfile, 'a') as outfile_tsv:
                                 for work in oa_json['results']:
-                                    if 'referenced_works_count' in work:
-                                        ref_count = str(work['referenced_works_count'])
+                                    if 'cited_by_count' in work:
+                                        cit_count = str(work['cited_by_count'])
+                                    # If available, also get Scopus citation count for comparison
+                                    if scopus_eid:
+                                        print(f"Found Scopus ID {scopus_eid} for CRIS publication ID {publ['Id']}, querying Scopus for citation count")
+                                        scopus_cit_count = scopus_citation_count(scopus_eid)  
                                     # Check if there is a Chalmers aff in OA
                                     chalmers_aff = '0'
                                     if 'authorships' in work:
@@ -75,7 +126,7 @@ for i in range(500):
                                                 for inst in auth['institutions']:
                                                     if inst['id'] == chalmers_oa_id:
                                                         chalmers_aff = '1'
-                                    line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t{doi}\t\t{work['id']}\t{work['title']}\t{chalmers_aff}\t{ref_count}\tDOI\n"
+                                    line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t{pubtype}\t{doi}\t\t{work['id']}\t{scopus_eid}\t{chalmers_aff}\t{cit_count}\t{scopus_cit_count}\tDOI\n"
                                     outfile_tsv.write(line)
                             print(f"DOI match found for publication ID {publ['Id']} with DOI {doi}")
                             oa_matched = '1'
@@ -96,8 +147,12 @@ for i in range(500):
                             oa_match_pmid += 1
                             with open(outfile, 'a') as outfile_tsv:
                                 for work in oa_json['results']:
-                                    if 'referenced_works_count' in work:
-                                        ref_count = str(work['referenced_works_count'])
+                                    if 'cited_by_count' in work:
+                                        cit_count = str(work['cited_by_count'])
+                                    # If available, also get Scopus citation count for comparison
+                                    if scopus_eid:
+                                        print(f"Found Scopus ID {scopus_eid} for CRIS publication ID {publ['Id']}, querying Scopus for citation count")
+                                        scopus_cit_count = scopus_citation_count(scopus_eid)
                                     chalmers_aff = '0'
                                     if 'authorships' in work:
                                         for auth in work['authorships']:
@@ -105,7 +160,7 @@ for i in range(500):
                                                 for inst in auth['institutions']:
                                                     if inst['id'] == chalmers_oa_id:
                                                         chalmers_aff = '1'
-                                    line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t\t{pmid}\t{work['id']}\t{work['title']}\t{chalmers_aff}\t{ref_count}\tPMID\n"
+                                    line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t{pubtype}\t\t{pmid}\t{work['id']}\t{scopus_eid}\t{chalmers_aff}\t{cit_count}\t{scopus_cit_count}\tPMID\n"
                                     outfile_tsv.write(line)
                             print(f"PMID match found for publication ID {publ['Id']} with PMID {pmid}")
                             oa_matched = '1'
@@ -116,7 +171,7 @@ for i in range(500):
                         print(f"Error querying OA for PMID {pmid}: {e}")
                 # If no DOI or PMID (match), try with title and pubyear (fuzzy, less reliable)
                 if oa_matched == '0' and 'Title' in publ and len(publ['Title']) > 0:
-                    title = publ['Title'].strip().replace(" ", "+").replace('"', "%22").replace(",", "%2C").replace(":", "%3A")
+                    title = publ['Title'].strip().replace(" ", "+").replace('"', "%22").replace(",", "%2C").replace(":", "%20")
                     oa_query = oa_url + '?filter=title.search:' + title + ',publication_year:' + str(publ['Year'])
                     try:
                         oa_data = requests.get(url=oa_query, headers=headers).text
@@ -126,8 +181,12 @@ for i in range(500):
                             oa_match_title += 1
                             with open(outfile, 'a') as outfile_tsv:
                                 for work in oa_json['results']:
-                                    if 'referenced_works_count' in work:
-                                        ref_count = str(work['referenced_works_count'])
+                                    if 'cited_by_count' in work:
+                                        cit_count = str(work['cited_by_count'])
+                                    # If available, also get Scopus citation count for comparison
+                                    if scopus_eid:
+                                        print(f"Found Scopus ID {scopus_eid} for CRIS publication ID {publ['Id']}, querying Scopus for citation count")
+                                        scopus_cit_count = scopus_citation_count(scopus_eid)
                                     chalmers_aff = '0'
                                     if 'authorships' in work:
                                         for auth in work['authorships']:
@@ -135,7 +194,7 @@ for i in range(500):
                                                 for inst in auth['institutions']:
                                                     if inst['id'] == chalmers_oa_id:
                                                         chalmers_aff = '1'
-                                    line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t\t\t{work['id']}\t{work['title']}\t{chalmers_aff}\t{ref_count}\tTitle\n"
+                                    line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t{pubtype}\t\t\t{work['id']}\t{scopus_eid}\t{chalmers_aff}\t{cit_count}\t{scopus_cit_count}\tTITLE\n"
                                     outfile_tsv.write(line)
                             print(f"Title match found for publication ID {publ['Id']} with title {publ['Title']}")
                             oa_matched = '1'
@@ -148,7 +207,7 @@ for i in range(500):
                 checked += 1
                 if oa_matched == '0':
                     with open(outfile, 'a') as outfile_tsv:
-                        line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t{doi}\t{pmid}\t\t\t0\t0\tNO MATCH\n"
+                        line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t{pubtype}\t\t\t\t{scopus_eid}\t\t\t\tNO MATCH\n"
                         outfile_tsv.write(line)
                 
                 print(f"Checked {checked} publications. Matched {oa_match} in total.")
