@@ -5,3 +5,6 @@ CRIS_API_PW=xxxxxxxxxx
 CRIS_API_ENDPOINT=chalmers-research-publications-url/api/Service
 OA_ORG_ID=https://openalex.org/I66862912
 OUTFILE=oa_matches_cth.tsv
+SCOPUS_API_ENDPOINT=http://api.elsevier.com/content/search/scopus
+SCOPUS_API_KEY=xxxxxxxxxxxxxxxxxxxx
+SCOPUS_INSTTOKEN=xxxxxxxxxxxxxxxxxxxxxx
