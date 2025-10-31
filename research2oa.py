@@ -8,9 +8,9 @@ from dotenv import load_dotenv
 from datetime import datetime
 import os
 
-# Script for matching Chalmers CRIS publication records with Open Alex contents
+# Script for matching Chalmers CRIS publication records with Open Alex, Scopus and OpenAIRE (BIP) contents
 # See README for usage instructions and details
-
+  
 # Variables
 checked = 0
 oa_match = 0
@@ -52,7 +52,29 @@ def scopus_citation_count(scopus_eid):
         print(f"Error querying Scopus for Scopus ID {scopus_id}: {e}")
     return scopus_citation_count
 
+def bip_scores(doi):
+    bib_scores_values = {'cc': '0', 'attrank': '0', 'pagerank': '0'}
+    bc_headers = {'Accept': 'application/json'}
+    bc_doi = doi.replace('/', '%2F')
+    bc_url = "https://bip-api.imsi.athenarc.gr/paper/scores/" + bc_doi
+    try:
+        bc_data = requests.get(url=bc_url, headers=bc_headers).text
+        bc_json = json.loads(bc_data)
+        if 'cc' in bc_json and 'doi' in bc_json:
+            bib_scores_values['cc'] = str(bc_json['cc'])
+        if 'attrank' in bc_json and 'doi' in bc_json:
+            bib_scores_values['attrank'] = str(bc_json['attrank'])
+        if 'pagerank' in bc_json and 'doi' in bc_json:
+            bib_scores_values['pagerank'] = str(bc_json['pagerank'])
+    except Exception as e:
+        print(f"Error querying BIP for DOI {doi}: {e}")
+    return bib_scores_values
+
 headers = {'Accept': 'application/json'}
+
+# Add headers to outfile
+with open(outfile, 'a') as outfile_tsv:
+    outfile_tsv.write("CRIS_ID\tTitle\tYear\tPublicationType\tDOI\tPMID\tOA_ID\tScopus_EID\tChalmers_Affiliation\tOA_Citation_Count\tScopus_Citation_Count\tBIP_CC\tBIP_Attrank\tBIP_Pagerank\tMatch_Type\n")
 
 for i in range(1000):
     cris_url = (
@@ -116,6 +138,9 @@ for i in range(1000):
                                     if scopus_eid:
                                         print(f"Found Scopus ID {scopus_eid} for CRIS publication ID {publ['Id']}, querying Scopus for citation count")
                                         scopus_cit_count = scopus_citation_count(scopus_eid)  
+                                    # Add values from OpenAIRE/BIP! if available here
+                                    bib_scores = bip_scores(doi)
+                                    print(f"BIP scores for DOI {doi}: CC={bib_scores['cc']}, Attrank={bib_scores['attrank']}, Pagerank={bib_scores['pagerank']}")
                                     # Check if there is a Chalmers aff in OA
                                     chalmers_aff = '0'
                                     if 'authorships' in work:
@@ -124,7 +149,7 @@ for i in range(1000):
                                                 for inst in auth['institutions']:
                                                     if inst['id'] == chalmers_oa_id:
                                                         chalmers_aff = '1'
-                                    line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t{pubtype}\t{doi}\t\t{work['id']}\t{scopus_eid}\t{chalmers_aff}\t{cit_count}\t{scopus_cit_count}\tDOI\n"
+                                    line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t{pubtype}\t{doi}\t\t{work['id']}\t{scopus_eid}\t{chalmers_aff}\t{cit_count}\t{scopus_cit_count}\t{bib_scores['cc']}\t{bib_scores['attrank']}\t{bib_scores['pagerank']}\tDOI\n"
                                     outfile_tsv.write(line)
                             print(f"DOI match found for publication ID {publ['Id']} with DOI {doi}")
                             oa_matched = '1'
@@ -158,7 +183,7 @@ for i in range(1000):
                                                 for inst in auth['institutions']:
                                                     if inst['id'] == chalmers_oa_id:
                                                         chalmers_aff = '1'
-                                    line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t{pubtype}\t\t{pmid}\t{work['id']}\t{scopus_eid}\t{chalmers_aff}\t{cit_count}\t{scopus_cit_count}\tPMID\n"
+                                    line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t{pubtype}\t\t{pmid}\t{work['id']}\t{scopus_eid}\t{chalmers_aff}\t{cit_count}\t{scopus_cit_count}\t0\t0\t0\tPMID\n"
                                     outfile_tsv.write(line)
                             print(f"PMID match found for publication ID {publ['Id']} with PMID {pmid}")
                             oa_matched = '1'
@@ -192,7 +217,7 @@ for i in range(1000):
                                                 for inst in auth['institutions']:
                                                     if inst['id'] == chalmers_oa_id:
                                                         chalmers_aff = '1'
-                                    line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t{pubtype}\t\t\t{work['id']}\t{scopus_eid}\t{chalmers_aff}\t{cit_count}\t{scopus_cit_count}\tTITLE\n"
+                                    line = f"{publ['Id']}\t{publ['Title']}\t{publ['Year']}\t{pubtype}\t\t\t{work['id']}\t{scopus_eid}\t{chalmers_aff}\t{cit_count}\t{scopus_cit_count}\t0\t0\t0\tTITLE\n"
                                     outfile_tsv.write(line)
                             print(f"Title match found for publication ID {publ['Id']} with title {publ['Title']}")
                             oa_matched = '1'
@@ -220,5 +245,4 @@ for i in range(1000):
         break
 
     time.sleep(1) 
-
 exit(0)
