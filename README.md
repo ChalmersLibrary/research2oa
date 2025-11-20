@@ -14,7 +14,7 @@ Output (tsv):
 * DOI
 * PMID
 * Open Alex Publication (Work) ID
-* OA Chalmers Affiliation (0/1, indicates if the publication is tagged with Chalmers OA Id)
+* OA Chalmers Affiliation (0/1, indicates if the publication is tagged with Chalmers OA Org. ID)
 * OA Citation Count
 * Scopus Citation Count
 * OpenAIRE (BIP) Citation Count
