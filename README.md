@@ -1,6 +1,6 @@
 # research2oa
 
-Script for matching Chalmers CRIS publication records with Open Alex contents.    
+Script for retrieving and matching a specified set of Chalmers CRIS publication records with Open Alex contents.    
 
 Will try to match (exact) using DOI and/or PMID first, then fuzzy match using title and (CRIS) publication year.   
 
@@ -14,7 +14,7 @@ Output (tsv):
 * DOI
 * PMID
 * Open Alex Publication (Work) ID
-* OA Chalmers Affiliation (0/1)
+* OA Chalmers Affiliation (0/1, indicates if the publication is tagged with Chalmers OA Id)
 * OA Citation Count
 * Scopus Citation Count
 * OpenAIRE (BIP) Citation Count
